@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 public class KuduDatabase {
 
-    protected static final String hostsCluster = "172.25.0.6";
+    protected static final String hostsCluster = "172.16.20.26";
 
     protected static final Object[][] booksTableData = {
             {1001, "Java for dummies", "Tan Ah Teck", 11.11, 11},
@@ -37,7 +37,7 @@ public class KuduDatabase {
 
     protected static KuduTableInfo booksTableInfo(String tableName, boolean createIfNotExist) {
         return KuduTableInfo.Builder
-                .create(tableName)
+                .create("impala::test.books")
                 .createIfNotExist(createIfNotExist)
                 .replicas(1)
                 .addColumn(KuduColumnInfo.Builder.create("id", Type.INT32).key(true).hashKey(true).build())
@@ -67,7 +67,7 @@ public class KuduDatabase {
             KuduConnector tableContext = new KuduConnector(hostsCluster, tableInfo);
             booksDataRow().forEach(row -> {
                 try {
-                    tableContext.writeRow(row, KuduConnector.Consistency.STRONG, KuduConnector.WriteMode.UPSERT);
+                    tableContext.writeRow(row, WriteMode.UPSERT);
                 }catch (Exception e) {
                     e.printStackTrace();
                 }

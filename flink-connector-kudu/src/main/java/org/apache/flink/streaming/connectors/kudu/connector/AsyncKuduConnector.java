@@ -19,43 +19,60 @@ package org.apache.flink.streaming.connectors.kudu.connector;
 import java.io.IOException;
 import java.util.List;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.kudu.client.AsyncKuduClient;
+import org.apache.kudu.client.AsyncKuduSession;
 import org.apache.kudu.client.KuduClient;
 import org.apache.kudu.client.KuduScanToken;
 import org.apache.kudu.client.KuduScanner;
-import org.apache.kudu.client.KuduSession;
 import org.apache.kudu.client.KuduTable;
 import org.apache.kudu.client.Operation;
 import org.apache.kudu.client.RowError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class KuduConnector implements Connector {
+public class AsyncKuduConnector implements Connector {
 
     private final Logger LOG = LoggerFactory.getLogger(this.getClass());
 
-    private KuduClient client;
+    private AsyncKuduClient client;
     private KuduTable table;
-    private KuduSession session;
+    private AsyncKuduSession session;
+    private Operation operation;
+    private long currentCount;
+    private DefaultWindow defaultWindow;
+    private WriteMode writeMode;
 
-    public KuduConnector(String kuduMasters, KuduTableInfo tableInfo)
+    public AsyncKuduConnector(String kuduMasters, KuduTableInfo tableInfo)
         throws IOException {
         client = client(kuduMasters);
         table = table(tableInfo);
         session = client.newSession();
     }
 
-    private KuduClient client(String kuduMasters) {
-        return new KuduClient.KuduClientBuilder(kuduMasters).build();
+    public AsyncKuduConnector withWriteMode(WriteMode writeMode) {
+        this.writeMode = writeMode;
+        operation = KuduMapper.toOperation(table, writeMode);
+        return this;
+    }
+
+    public AsyncKuduConnector withDefaultWindow(DefaultWindow defaultWindow) {
+        this.defaultWindow = defaultWindow;
+        return this;
+    }
+
+    private AsyncKuduClient client(String kuduMasters) {
+        return new AsyncKuduClient.AsyncKuduClientBuilder(kuduMasters).build();
     }
 
     private KuduTable table(KuduTableInfo infoTable) throws IOException {
+        KuduClient syncClient = client.syncClient();
 
         String tableName = infoTable.getName();
-        if (client.tableExists(tableName)) {
-            return client.openTable(tableName);
+        if (syncClient.tableExists(tableName)) {
+            return syncClient.openTable(tableName);
         }
         if (infoTable.createIfNotExist()) {
-            return client
+            return syncClient
                 .createTable(tableName, infoTable.getSchema(), infoTable.getCreateTableOptions());
         }
         throw new UnsupportedOperationException(
@@ -64,17 +81,17 @@ public class KuduConnector implements Connector {
 
     public boolean deleteTable() throws IOException {
         String tableName = table.getName();
-        client.deleteTable(tableName);
+        client.syncClient().deleteTable(tableName);
         return true;
     }
 
     public KuduScanner scanner(byte[] token) throws IOException {
-        return KuduScanToken.deserializeIntoScanner(token, client);
+        return KuduScanToken.deserializeIntoScanner(token, client.syncClient());
     }
 
     public List<KuduScanToken> scanTokens(List<KuduFilterInfo> tableFilters,
         List<String> tableProjections, Long rowLimit) {
-        KuduScanToken.KuduScanTokenBuilder tokenBuilder = client
+        KuduScanToken.KuduScanTokenBuilder tokenBuilder = client.syncClient()
             .newScanTokenBuilder(table);
 
         if (CollectionUtils.isNotEmpty(tableProjections)) {
@@ -96,12 +113,16 @@ public class KuduConnector implements Connector {
         return tokenBuilder.build();
     }
 
-    public void writeRow(KuduRow row, WriteMode writeMode)
-        throws Exception {
-        final Operation operation = KuduMapper.toOperation(table, writeMode, row);
-        session.apply(operation);
-        session.flush();
-        processResponse(session.getPendingErrors().getRowErrors());
+    public void writeRow(KuduRow row, WriteMode writeMode) throws Exception {
+
+        KuduMapper.addRow(operation, table, row);
+        currentCount = currentCount + 1;
+        if (defaultWindow.isPassed(currentCount)) {
+            session.apply(operation);
+            session.flush();
+            operation = KuduMapper.toOperation(table, writeMode);
+            processResponse(session.getPendingErrors().getRowErrors());
+        }
     }
 
     @Override
@@ -114,6 +135,7 @@ public class KuduConnector implements Connector {
         }
     }
 
+
     private void processResponse(RowError[] rowErrors) {
         for (RowError rowError : rowErrors) {
             logResponseError(rowError);
@@ -124,5 +146,4 @@ public class KuduConnector implements Connector {
         LOG.error("Error {} on {}: {} ", error.getErrorStatus(), error.getOperation(),
             error.toString());
     }
-
 }

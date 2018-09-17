@@ -35,6 +35,8 @@ import java.util.List;
 
 public class KuduInputFormat extends RichInputFormat<KuduRow, KuduInputFormat.KuduInputSplit> {
 
+    private static final long serialVersionUID = 5533860327958424925L;
+
     private String kuduMasters;
     private KuduTableInfo tableInfo;
     private List<KuduFilterInfo> tableFilters;
@@ -198,6 +200,7 @@ public class KuduInputFormat extends RichInputFormat<KuduRow, KuduInputFormat.Ku
 
     public class KuduInputSplit extends LocatableInputSplit {
 
+        private static final long serialVersionUID = -5065244166745783060L;
         private byte[] scanToken;
 
         /**

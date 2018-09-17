@@ -32,28 +32,31 @@ public class KuduSinkTest extends KuduDatabase {
 
     @Test
     public void testInvalidKuduMaster() throws IOException {
-        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(),false);
-        Assertions.assertThrows(NullPointerException.class, () -> new KuduOutputFormat<>(null, tableInfo));
+        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(), false);
+        Assertions.assertThrows(NullPointerException.class,
+            () -> new KuduOutputFormat<>(null, tableInfo));
     }
 
     @Test
     public void testInvalidTableInfo() throws IOException {
-        Assertions.assertThrows(NullPointerException.class, () -> new KuduOutputFormat<>(hostsCluster, null));
+        Assertions.assertThrows(NullPointerException.class,
+            () -> new KuduOutputFormat<>(hostsCluster, null));
     }
 
     @Test
     public void testNotTableExist() throws IOException {
-        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(),false);
+        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(), false);
         KuduSink sink = new KuduSink<>(hostsCluster, tableInfo);
-        Assertions.assertThrows(UnsupportedOperationException.class, () -> sink.open(new Configuration()));
+        Assertions.assertThrows(UnsupportedOperationException.class,
+            () -> sink.open(new Configuration()));
     }
 
     @Test
     public void testOutputWithStrongConsistency() throws Exception {
 
-        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(),true);
+        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(), true);
         KuduSink sink = new KuduSink<>(hostsCluster, tableInfo)
-                .withStrongConsistency();
+            .withStrongConsistency();
         sink.open(new Configuration());
 
         for (KuduRow kuduRow : booksDataRow()) {
@@ -68,9 +71,11 @@ public class KuduSinkTest extends KuduDatabase {
 
     @Test
     public void testOutputWithEventualConsistency() throws Exception {
-        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(),true);
+        KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(), true);
         KuduSink sink = new KuduSink<>(hostsCluster, tableInfo)
-                .withEventualConsistency();
+            .withEventualConsistency()
+            .withInsertWriteMode()
+            .withCountWindow(2);
         sink.open(new Configuration());
 
         for (KuduRow kuduRow : booksDataRow()) {

@@ -79,8 +79,61 @@ public final class KuduMapper {
         return values;
     }
 
+    public static Operation addRow(Operation operation, KuduTable table, KuduRow row) {
+        final PartialRow partialRow = operation.getRow();
 
-    public static Operation toOperation(KuduTable table, KuduConnector.WriteMode writeMode, KuduRow row) {
+        Schema schema = table.getSchema();
+        List<ColumnSchema> columns = schema.getColumns();
+
+        for (int i = 0; i < columns.size(); i++) {
+            String columnName = schema.getColumnByIndex(i).getName();
+            Object value = row.getField(i);
+            if (value == null) {
+                partialRow.setNull(columnName);
+            } else {
+                Type type = schema.getColumnByIndex(i).getType();
+                switch (type) {
+                    case STRING:
+                        partialRow.addString(columnName, (String) value);
+                        break;
+                    case FLOAT:
+                        partialRow.addFloat(columnName, (Float) value);
+                        break;
+                    case INT8:
+                        partialRow.addByte(columnName, (Byte) value);
+                        break;
+                    case INT16:
+                        partialRow.addShort(columnName, (Short) value);
+                        break;
+                    case INT32:
+                        partialRow.addInt(columnName, (Integer) value);
+                        break;
+                    case INT64:
+                        partialRow.addLong(columnName, (Long) value);
+                        break;
+                    case DOUBLE:
+                        partialRow.addDouble(columnName, (Double) value);
+                        break;
+                    case BOOL:
+                        partialRow.addBoolean(columnName, (Boolean) value);
+                        break;
+                    case UNIXTIME_MICROS:
+                        //*1000 to correctly create date on kudu
+                        partialRow.addLong(columnName, ((Long) value) * 1000);
+                        break;
+                    case BINARY:
+                        partialRow.addBinary(columnName, (byte[]) value);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Illegal var type: " + type);
+                }
+            }
+        }
+        return operation;
+    }
+
+
+    public static Operation toOperation(KuduTable table, WriteMode writeMode, KuduRow row) {
         final Operation operation = toOperation(table, writeMode);
         final PartialRow partialRow = operation.getRow();
 
@@ -134,7 +187,7 @@ public final class KuduMapper {
         return operation;
     }
 
-    public static Operation toOperation(KuduTable table, KuduConnector.WriteMode writeMode) {
+    public static Operation toOperation(KuduTable table, WriteMode writeMode) {
         switch (writeMode) {
             case INSERT: return table.newInsert();
             case UPDATE: return table.newUpdate();

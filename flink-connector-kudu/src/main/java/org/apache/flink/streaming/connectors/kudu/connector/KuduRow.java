@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 
 public class KuduRow extends Row {
 
+    private static final long serialVersionUID = -3340119884629953403L;
     private Map<String, Integer> rowNames;
 
     public KuduRow(Integer arity) {

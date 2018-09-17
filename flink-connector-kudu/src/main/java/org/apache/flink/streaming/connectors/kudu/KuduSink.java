@@ -16,61 +16,78 @@
  */
 package org.apache.flink.streaming.connectors.kudu;
 
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
+import org.apache.flink.streaming.connectors.kudu.connector.AsyncKuduConnector;
+import org.apache.flink.streaming.connectors.kudu.connector.Connector;
+import org.apache.flink.streaming.connectors.kudu.connector.Consistency;
 import org.apache.flink.streaming.connectors.kudu.connector.KuduConnector;
 import org.apache.flink.streaming.connectors.kudu.connector.KuduRow;
 import org.apache.flink.streaming.connectors.kudu.connector.KuduTableInfo;
+import org.apache.flink.streaming.connectors.kudu.connector.DefaultWindow;
+import org.apache.flink.streaming.connectors.kudu.connector.WriteMode;
 import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-
 public class KuduSink<OUT extends KuduRow> extends RichSinkFunction<OUT> {
 
     private static final Logger LOG = LoggerFactory.getLogger(KuduOutputFormat.class);
+    private static final long serialVersionUID = 1000128269395538411L;
 
     private String kuduMasters;
     private KuduTableInfo tableInfo;
-    private KuduConnector.Consistency consistency;
-    private KuduConnector.WriteMode writeMode;
+    private Consistency consistency;
+    private WriteMode writeMode;
+    private DefaultWindow defaultWindow = new DefaultWindow();
 
-    private transient KuduConnector tableContext;
+    private transient Connector tableContext;
 
 
     public KuduSink(String kuduMasters, KuduTableInfo tableInfo) {
-        Preconditions.checkNotNull(kuduMasters,"kuduMasters could not be null");
+        Preconditions.checkNotNull(kuduMasters, "kuduMasters could not be null");
         this.kuduMasters = kuduMasters;
 
-        Preconditions.checkNotNull(tableInfo,"tableInfo could not be null");
+        Preconditions.checkNotNull(tableInfo, "tableInfo could not be null");
         this.tableInfo = tableInfo;
-        this.consistency = KuduConnector.Consistency.STRONG;
-        this.writeMode = KuduConnector.WriteMode.UPSERT;
+        this.consistency = Consistency.STRONG;
+        this.writeMode = WriteMode.UPSERT;
     }
 
     public KuduSink<OUT> withEventualConsistency() {
-        this.consistency = KuduConnector.Consistency.EVENTUAL;
+        this.consistency = Consistency.EVENTUAL;
         return this;
     }
 
     public KuduSink<OUT> withStrongConsistency() {
-        this.consistency = KuduConnector.Consistency.STRONG;
+        this.consistency = Consistency.STRONG;
         return this;
     }
 
     public KuduSink<OUT> withUpsertWriteMode() {
-        this.writeMode = KuduConnector.WriteMode.UPSERT;
+        this.writeMode = WriteMode.UPSERT;
         return this;
     }
 
     public KuduSink<OUT> withInsertWriteMode() {
-        this.writeMode = KuduConnector.WriteMode.INSERT;
+        this.writeMode = WriteMode.INSERT;
         return this;
     }
 
     public KuduSink<OUT> withUpdateWriteMode() {
-        this.writeMode = KuduConnector.WriteMode.UPDATE;
+        this.writeMode = WriteMode.UPDATE;
+        return this;
+    }
+
+    public KuduSink<OUT> withCountWindow(final long count) {
+        defaultWindow.withCountWindow(count);
+        return this;
+    }
+
+    public KuduSink<OUT> withTimeWindow(final long time, final TimeUnit unit) {
+        defaultWindow.withTimeWindow(time, unit);
         return this;
     }
 
@@ -80,15 +97,24 @@ public class KuduSink<OUT extends KuduRow> extends RichSinkFunction<OUT> {
     }
 
     private void startTableContext() throws IOException {
-        if (tableContext != null) return;
-        tableContext = new KuduConnector(kuduMasters, tableInfo);
+        if (tableContext != null) {
+            return;
+        }
+        if (Consistency.EVENTUAL.equals(consistency)) {
+            tableContext = new AsyncKuduConnector(kuduMasters, tableInfo)
+                .withDefaultWindow(defaultWindow)
+                .withWriteMode(writeMode);
+        } else {
+            tableContext = new KuduConnector(kuduMasters, tableInfo);
+        }
+
     }
 
 
     @Override
     public void invoke(OUT kuduRow) throws Exception {
         try {
-            tableContext.writeRow(kuduRow, consistency, writeMode);
+            tableContext.writeRow(kuduRow, writeMode);
         } catch (Exception e) {
             throw new IOException(e.getLocalizedMessage(), e);
         }
@@ -96,7 +122,9 @@ public class KuduSink<OUT extends KuduRow> extends RichSinkFunction<OUT> {
 
     @Override
     public void close() throws Exception {
-        if (this.tableContext == null) return;
+        if (this.tableContext == null) {
+            return;
+        }
         try {
             this.tableContext.close();
         } catch (Exception e) {

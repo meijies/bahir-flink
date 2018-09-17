@@ -28,6 +28,7 @@ public class KuduTableInfo implements Serializable {
 
     private static final Integer DEFAULT_REPLICAS = 1;
     private static final boolean DEFAULT_CREATE_IF_NOT_EXIST = false;
+    private static final long serialVersionUID = 8798801069064233162L;
 
     private Integer replicas;
     private String name;

@@ -23,6 +23,7 @@ import java.io.Serializable;
 
 public class KuduColumnInfo implements Serializable {
 
+    private static final long serialVersionUID = 5125038197060698374L;
     private String name;
     private Type type;
     private boolean key;
