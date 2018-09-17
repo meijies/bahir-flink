@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.streaming.connectors.kudu;
 
 import java.io.IOException;
@@ -81,11 +82,6 @@ public class KuduSink<OUT extends KuduRow> extends RichSinkFunction<OUT> {
         return this;
     }
 
-    public KuduSink<OUT> withCountWindow(final long count) {
-        defaultWindow.withCountWindow(count);
-        return this;
-    }
-
     public KuduSink<OUT> withTimeWindow(final long time, final TimeUnit unit) {
         defaultWindow.withTimeWindow(time, unit);
         return this;
@@ -105,19 +101,16 @@ public class KuduSink<OUT extends KuduRow> extends RichSinkFunction<OUT> {
                 .withDefaultWindow(defaultWindow)
                 .withWriteMode(writeMode);
         } else {
-            tableContext = new KuduConnector(kuduMasters, tableInfo);
+            tableContext = new KuduConnector(kuduMasters, tableInfo)
+                .withWriteMode(writeMode);
         }
 
     }
 
 
     @Override
-    public void invoke(OUT kuduRow) throws Exception {
-        try {
-            tableContext.writeRow(kuduRow, writeMode);
-        } catch (Exception e) {
-            throw new IOException(e.getLocalizedMessage(), e);
-        }
+    public void invoke(OUT kuduRow) {
+        tableContext.writeRow(kuduRow);
     }
 
     @Override

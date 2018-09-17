@@ -14,14 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.streaming.connectors.kudu.connector;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.kudu.client.AsyncKuduClient;
 import org.apache.kudu.client.AsyncKuduSession;
 import org.apache.kudu.client.KuduClient;
+import org.apache.kudu.client.KuduException;
 import org.apache.kudu.client.KuduScanToken;
 import org.apache.kudu.client.KuduScanner;
 import org.apache.kudu.client.KuduTable;
@@ -37,26 +42,27 @@ public class AsyncKuduConnector implements Connector {
     private AsyncKuduClient client;
     private KuduTable table;
     private AsyncKuduSession session;
-    private Operation operation;
-    private long currentCount;
-    private DefaultWindow defaultWindow;
     private WriteMode writeMode;
+    private ScheduledExecutorService errorLogExecutor;
 
     public AsyncKuduConnector(String kuduMasters, KuduTableInfo tableInfo)
         throws IOException {
         client = client(kuduMasters);
         table = table(tableInfo);
         session = client.newSession();
+        errorLogExecutor = Executors.newSingleThreadScheduledExecutor();
+        errorLogExecutor.scheduleWithFixedDelay(
+            () -> processResponse(session.getPendingErrors().getRowErrors()), 5, 5,
+            TimeUnit.MINUTES);
     }
 
     public AsyncKuduConnector withWriteMode(WriteMode writeMode) {
         this.writeMode = writeMode;
-        operation = KuduMapper.toOperation(table, writeMode);
         return this;
     }
 
     public AsyncKuduConnector withDefaultWindow(DefaultWindow defaultWindow) {
-        this.defaultWindow = defaultWindow;
+        this.session.setFlushInterval((int) defaultWindow.getMillisStep());
         return this;
     }
 
@@ -113,16 +119,10 @@ public class AsyncKuduConnector implements Connector {
         return tokenBuilder.build();
     }
 
-    public void writeRow(KuduRow row, WriteMode writeMode) throws Exception {
-
+    public void writeRow(KuduRow row) throws KuduException {
+        final Operation operation = KuduMapper.toOperation(table, writeMode);
         KuduMapper.addRow(operation, table, row);
-        currentCount = currentCount + 1;
-        if (defaultWindow.isPassed(currentCount)) {
-            session.apply(operation);
-            session.flush();
-            operation = KuduMapper.toOperation(table, writeMode);
-            processResponse(session.getPendingErrors().getRowErrors());
-        }
+        session.apply(operation);
     }
 
     @Override

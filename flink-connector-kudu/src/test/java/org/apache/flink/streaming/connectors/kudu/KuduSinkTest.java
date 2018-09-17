@@ -74,8 +74,7 @@ public class KuduSinkTest extends KuduDatabase {
         KuduTableInfo tableInfo = booksTableInfo(UUID.randomUUID().toString(), true);
         KuduSink sink = new KuduSink<>(hostsCluster, tableInfo)
             .withEventualConsistency()
-            .withInsertWriteMode()
-            .withCountWindow(2);
+            .withInsertWriteMode();
         sink.open(new Configuration());
 
         for (KuduRow kuduRow : booksDataRow()) {

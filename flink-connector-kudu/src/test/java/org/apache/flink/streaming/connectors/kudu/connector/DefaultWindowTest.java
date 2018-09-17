@@ -17,7 +17,19 @@
 
 package org.apache.flink.streaming.connectors.kudu.connector;
 
-public enum Consistency {
-    EVENTUAL,
-    STRONG
+import java.util.concurrent.TimeUnit;
+import org.junit.Assert;
+import org.junit.jupiter.api.Test;
+
+/**
+ * @author meijie created at 9/17/18
+ */
+public class DefaultWindowTest {
+    @Test
+    public void testMillisStep() {
+        DefaultWindow defaultWindow = new DefaultWindow();
+        defaultWindow.withTimeWindow(1, TimeUnit.SECONDS);
+        Assert.assertEquals(1000, defaultWindow.getMillisStep());
+    }
+
 }

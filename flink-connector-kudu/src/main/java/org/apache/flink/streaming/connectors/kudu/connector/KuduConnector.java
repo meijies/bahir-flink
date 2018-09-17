@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.kudu.client.KuduClient;
+import org.apache.kudu.client.KuduException;
 import org.apache.kudu.client.KuduScanToken;
 import org.apache.kudu.client.KuduScanner;
 import org.apache.kudu.client.KuduSession;
@@ -36,6 +37,7 @@ public class KuduConnector implements Connector {
     private KuduClient client;
     private KuduTable table;
     private KuduSession session;
+    private WriteMode writeMode;
 
     public KuduConnector(String kuduMasters, KuduTableInfo tableInfo)
         throws IOException {
@@ -43,6 +45,12 @@ public class KuduConnector implements Connector {
         table = table(tableInfo);
         session = client.newSession();
     }
+
+    public KuduConnector withWriteMode(WriteMode writeMode) {
+        this.writeMode = writeMode;
+        return this;
+    }
+
 
     private KuduClient client(String kuduMasters) {
         return new KuduClient.KuduClientBuilder(kuduMasters).build();
@@ -96,8 +104,7 @@ public class KuduConnector implements Connector {
         return tokenBuilder.build();
     }
 
-    public void writeRow(KuduRow row, WriteMode writeMode)
-        throws Exception {
+    public void writeRow(KuduRow row) throws KuduException {
         final Operation operation = KuduMapper.toOperation(table, writeMode, row);
         session.apply(operation);
         session.flush();

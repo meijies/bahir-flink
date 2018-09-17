@@ -14,10 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.streaming.connectors.kudu.connector;
+
+import org.apache.kudu.client.KuduException;
 
 public interface Connector extends AutoCloseable{
 
-    void writeRow(KuduRow row, WriteMode writeMode) throws Exception;
+    void writeRow(KuduRow row) throws KuduException;
 
 }

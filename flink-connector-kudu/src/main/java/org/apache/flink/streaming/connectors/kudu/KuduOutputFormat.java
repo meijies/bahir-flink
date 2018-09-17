@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.streaming.connectors.kudu;
 
 import java.util.concurrent.TimeUnit;
@@ -82,10 +83,6 @@ public class KuduOutputFormat<OUT extends KuduRow> implements OutputFormat<OUT> 
         return this;
     }
 
-    public KuduOutputFormat<OUT> withCountWindow(final long count) {
-        defaultWindow.withCountWindow(count);
-        return this;
-    }
 
     public KuduOutputFormat<OUT> withTimeWindow(final long time, final TimeUnit unit) {
         defaultWindow.withTimeWindow(time, unit);
@@ -109,14 +106,15 @@ public class KuduOutputFormat<OUT extends KuduRow> implements OutputFormat<OUT> 
             .withWriteMode(writeMode)
             .withDefaultWindow(defaultWindow);
         } else {
-            tableContext = new KuduConnector(kuduMasters, tableInfo);
+            tableContext = new KuduConnector(kuduMasters, tableInfo)
+            .withWriteMode(writeMode);
         }
     }
 
     @Override
     public void writeRecord(OUT kuduRow) throws IOException {
         try {
-            tableContext.writeRow(kuduRow, writeMode);
+            tableContext.writeRow(kuduRow);
         } catch (Exception e) {
             throw new IOException(e.getLocalizedMessage(), e);
         }

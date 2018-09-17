@@ -64,10 +64,11 @@ public class KuduDatabase {
 
     public void setUpDatabase(KuduTableInfo tableInfo) {
         try {
-            KuduConnector tableContext = new KuduConnector(hostsCluster, tableInfo);
+            KuduConnector tableContext = new KuduConnector(hostsCluster, tableInfo)
+                .withWriteMode(WriteMode.UPSERT);
             booksDataRow().forEach(row -> {
                 try {
-                    tableContext.writeRow(row, WriteMode.UPSERT);
+                    tableContext.writeRow(row);
                 }catch (Exception e) {
                     e.printStackTrace();
                 }

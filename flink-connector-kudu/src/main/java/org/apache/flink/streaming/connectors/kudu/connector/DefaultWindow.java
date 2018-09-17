@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.streaming.connectors.kudu.connector;
 
 import java.io.Serializable;
@@ -26,39 +27,14 @@ public class DefaultWindow implements Serializable {
 
     private static final long serialVersionUID = -8670298849963263760L;
 
-    private long millisStep = Long.MAX_VALUE;
-    private long end = Long.MAX_VALUE;
-    private long count = Long.MAX_VALUE;
-
-    public DefaultWindow() {
-    }
+    private long millisStep = 1000;
 
     public DefaultWindow withTimeWindow(final long step, TimeUnit unit) {
         millisStep = unit.toMillis(step);
-        end = System.currentTimeMillis() + millisStep;
         return this;
     }
 
-    public DefaultWindow withCountWindow(final long count) {
-        this.count = count;
-        return this;
-    }
-
-    /**
-     * @param realCount
-     * @return
-     */
-    public boolean isPassed(long realCount) {
-
-        if (Long.MAX_VALUE == count  && Long.MAX_VALUE == millisStep) {
-            return true;
-        }
-
-        if (realCount > count || System.currentTimeMillis() > end) {
-            end = System.currentTimeMillis() + millisStep;
-            return true;
-        }
-
-        return false;
+    public long getMillisStep() {
+        return millisStep;
     }
 }
