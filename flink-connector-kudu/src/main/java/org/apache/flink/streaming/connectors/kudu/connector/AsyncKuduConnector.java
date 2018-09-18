@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.kudu.client.AsyncKuduClient;
 import org.apache.kudu.client.AsyncKuduSession;
@@ -31,7 +32,9 @@ import org.apache.kudu.client.KuduScanToken;
 import org.apache.kudu.client.KuduScanner;
 import org.apache.kudu.client.KuduTable;
 import org.apache.kudu.client.Operation;
+import org.apache.kudu.client.PleaseThrottleException;
 import org.apache.kudu.client.RowError;
+import org.apache.kudu.client.SessionConfiguration.FlushMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +53,7 @@ public class AsyncKuduConnector implements Connector {
         client = client(kuduMasters);
         table = table(tableInfo);
         session = client.newSession();
+        session.setFlushMode(FlushMode.AUTO_FLUSH_BACKGROUND);
         errorLogExecutor = Executors.newSingleThreadScheduledExecutor();
         errorLogExecutor.scheduleWithFixedDelay(
             () -> processResponse(session.getPendingErrors().getRowErrors()), 5, 5,
@@ -63,6 +67,10 @@ public class AsyncKuduConnector implements Connector {
 
     public AsyncKuduConnector withDefaultWindow(DefaultWindow defaultWindow) {
         this.session.setFlushInterval((int) defaultWindow.getMillisStep());
+        this.session.setMutationBufferSpace(defaultWindow.getSize());
+        if (defaultWindow.getSize() > 2000) {
+            this.session.setMutationBufferLowWatermark(0.75f);
+        }
         return this;
     }
 
@@ -122,7 +130,18 @@ public class AsyncKuduConnector implements Connector {
     public void writeRow(KuduRow row) throws KuduException {
         final Operation operation = KuduMapper.toOperation(table, writeMode);
         KuduMapper.addRow(operation, table, row);
-        session.apply(operation);
+        retryApply(operation, 10);
+    }
+
+    public void retryApply(Operation operation, int retries) throws KuduException {
+        for (int i = 0; i < retries; i++) {
+            try {
+                session.apply(operation);
+                return;
+            } catch (PleaseThrottleException e) {
+                LockSupport.parkNanos(10000);
+            }
+        }
     }
 
     @Override
@@ -134,7 +153,6 @@ public class AsyncKuduConnector implements Connector {
             client.close();
         }
     }
-
 
     private void processResponse(RowError[] rowErrors) {
         for (RowError rowError : rowErrors) {

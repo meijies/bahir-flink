@@ -28,13 +28,23 @@ public class DefaultWindow implements Serializable {
     private static final long serialVersionUID = -8670298849963263760L;
 
     private long millisStep = 1000;
+    private int size = 1000;
 
-    public DefaultWindow withTimeWindow(final long step, TimeUnit unit) {
+    public DefaultWindow withTimeWindow(long step, TimeUnit unit) {
         millisStep = unit.toMillis(step);
+        return this;
+    }
+
+    public DefaultWindow withCountWindow(int count) {
+        this.size = count;
         return this;
     }
 
     public long getMillisStep() {
         return millisStep;
+    }
+
+    public int getSize() {
+        return size;
     }
 }

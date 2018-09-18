@@ -30,6 +30,7 @@ import org.apache.flink.streaming.connectors.kudu.connector.KuduTableInfo;
 import org.apache.flink.streaming.connectors.kudu.connector.DefaultWindow;
 import org.apache.flink.streaming.connectors.kudu.connector.WriteMode;
 import org.apache.flink.util.Preconditions;
+import org.apache.kudu.client.KuduException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +88,11 @@ public class KuduSink<OUT extends KuduRow> extends RichSinkFunction<OUT> {
         return this;
     }
 
+    public KuduSink<OUT> withCountWindow(final int count) {
+        defaultWindow.withCountWindow(count);
+        return this;
+    }
+
     @Override
     public void open(Configuration parameters) throws IOException {
         startTableContext();
@@ -109,7 +115,7 @@ public class KuduSink<OUT extends KuduRow> extends RichSinkFunction<OUT> {
 
 
     @Override
-    public void invoke(OUT kuduRow) {
+    public void invoke(OUT kuduRow) throws KuduException {
         tableContext.writeRow(kuduRow);
     }
 
