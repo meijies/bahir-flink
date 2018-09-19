@@ -19,7 +19,10 @@ package org.apache.flink.streaming.connectors.kudu.connector;
 
 import org.apache.kudu.client.KuduException;
 
-public interface Connector extends AutoCloseable{
+/**
+ * @author meijie created at 9/17/18
+ */
+public interface Connector extends AutoCloseable {
 
     void writeRow(KuduRow row) throws KuduException;
 

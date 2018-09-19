@@ -31,5 +31,4 @@ public class DefaultWindowTest {
         defaultWindow.withTimeWindow(1, TimeUnit.SECONDS);
         Assert.assertEquals(1000, defaultWindow.getMillisStep());
     }
-
 }

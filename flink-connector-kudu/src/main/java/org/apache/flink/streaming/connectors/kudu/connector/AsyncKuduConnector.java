@@ -38,6 +38,9 @@ import org.apache.kudu.client.SessionConfiguration.FlushMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * @author meijie created at 9/17/18
+ */
 public class AsyncKuduConnector implements Connector {
 
     private final Logger LOG = LoggerFactory.getLogger(this.getClass());
@@ -130,16 +133,21 @@ public class AsyncKuduConnector implements Connector {
     public void writeRow(KuduRow row) throws KuduException {
         final Operation operation = KuduMapper.toOperation(table, writeMode);
         KuduMapper.addRow(operation, table, row);
-        retryApply(operation, 10);
+        apply(operation);
     }
 
-    public void retryApply(Operation operation, int retries) throws KuduException {
-        for (int i = 0; i < retries; i++) {
+    /**
+     * retry until timeout.
+     * @param operation the data need to apply
+     * @throws KuduException
+     */
+    public void apply(Operation operation) throws KuduException {
+        while (true) {
             try {
                 session.apply(operation);
                 return;
             } catch (PleaseThrottleException e) {
-                LockSupport.parkNanos(10000);
+                LockSupport.parkNanos(100000);
             }
         }
     }
@@ -151,6 +159,9 @@ public class AsyncKuduConnector implements Connector {
         }
         if (client != null) {
             client.close();
+        }
+        if (errorLogExecutor != null) {
+            errorLogExecutor.shutdown();
         }
     }
 
